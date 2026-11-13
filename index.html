@@ -1,0 +1,1445 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Лапс — таймлапс работы</title>
+<meta name="description" content="Таймлапс работы за столом, учёт рабочего времени по дням и отвлечений на телефон">
+<meta name="theme-color" content="#0b0b0c">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Лапс">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<style>
+:root{
+  --bg:#0b0b0c; --card:#161618; --card2:#212125; --line:#2c2c31;
+  --text:#f4f4f5; --muted:#a3a3aa; --faint:#6e6e76;
+  --accent:#ffb224; --ink:#1d1400; --rec:#ff453a; --good:#30d158;
+  --r:18px;
+  --sat:env(safe-area-inset-top,0px); --sab:env(safe-area-inset-bottom,0px);
+  --sal:env(safe-area-inset-left,0px); --sar:env(safe-area-inset-right,0px);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--text);
+  font:16px/1.4 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%}
+body{min-height:100dvh;overscroll-behavior-y:none}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;touch-action:manipulation;padding:0}
+[hidden]{display:none !important}
+.num{font-variant-numeric:tabular-nums}
+h2{font-size:22px;margin:0 0 6px;letter-spacing:-.01em}
+p{margin:0}
+.small{font-size:13px;color:var(--muted)}
+
+#app{max-width:560px;margin:0 auto;
+  padding:calc(var(--sat) + 6px) calc(16px + var(--sar)) calc(var(--sab) + 92px) calc(16px + var(--sal))}
+.top{display:flex;align-items:center;justify-content:space-between;height:48px}
+.brand{font-weight:700;font-size:21px;letter-spacing:-.02em;display:flex;align-items:center;gap:10px}
+.logo{width:22px;height:22px;border-radius:50%;border:3px solid var(--accent);border-left-color:#2c2c31;position:relative;transform:rotate(45deg)}
+.logo::after{content:"";position:absolute;inset:3px;border-radius:50%;background:var(--rec)}
+.top .today-pill{font-size:13px;color:var(--muted);background:var(--card);padding:6px 10px;border-radius:999px}
+
+.view{display:none}
+.view.active{display:block;animation:fade .18s ease}
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+.card{background:var(--card);border-radius:var(--r);padding:16px;margin:12px 0}
+.label{font-size:13px;color:var(--muted);font-weight:600;margin-bottom:10px}
+.cardhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.cardhead .label{margin:0}
+
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.chip{min-width:52px;padding:9px 13px;border-radius:999px;background:var(--card2);font-weight:600;font-size:15px;transition:background .15s}
+.chip[aria-pressed="true"]{background:var(--accent);color:var(--ink)}
+.estimate{font-size:14px;color:var(--muted);line-height:1.5}
+.estimate b{color:var(--text);font-weight:600}
+
+.rows{padding:4px 16px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:52px;padding:6px 0}
+.row + .row{border-top:1px solid var(--line)}
+.row .rl{display:flex;flex-direction:column}
+.row .rl small{font-size:12px;color:var(--faint)}
+button.row{width:100%;text-align:left}
+.chev{color:var(--faint)}
+
+.seg{display:inline-flex;background:var(--card2);border-radius:10px;padding:3px;gap:2px}
+.seg button{padding:6px 12px;border-radius:8px;font-size:14px;font-weight:600;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:#3a3a41;color:var(--text)}
+
+.switch{flex:none;width:51px;height:31px;border-radius:999px;background:#3a3a41;position:relative;transition:background .2s}
+.switch::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;transition:transform .2s;box-shadow:0 2px 4px rgba(0,0,0,.3)}
+.switch[aria-checked="true"]{background:var(--good)}
+.switch[aria-checked="true"]::after{transform:translateX(20px)}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;padding:13px 18px;border-radius:14px;background:var(--card2);font-weight:600;font-size:16px}
+.btn.primary{background:var(--accent);color:var(--ink)}
+.btn.big{width:100%;padding:18px;font-size:18px;border-radius:18px}
+.btn.wide{width:100%}
+.btn.sm{padding:9px 14px;font-size:14px;border-radius:12px}
+.btn.danger{background:rgba(255,69,58,.14);color:#ff6961}
+.btn:disabled{opacity:.45}
+.btn:active{transform:scale(.98)}
+.stack{display:flex;flex-direction:column;gap:10px;margin-top:18px}
+.recdot{width:14px;height:14px;border-radius:50%;background:var(--rec);flex:none}
+.link{color:var(--accent);font-weight:600;font-size:14px}
+
+/* камера */
+.camwrap{position:relative;border-radius:var(--r);overflow:hidden;background:#000;height:min(44vh,420px);margin-top:6px}
+.camwrap video{width:100%;height:100%;object-fit:contain;display:block}
+.mirror video{transform:scaleX(-1)}
+.camempty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;text-align:center;color:var(--muted)}
+.camempty svg{width:40px;height:40px;color:var(--faint)}
+.iconbtn{position:absolute;width:44px;height:44px;border-radius:50%;background:rgba(0,0,0,.55);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);display:grid;place-items:center;color:#fff}
+.iconbtn svg{width:22px;height:22px}
+.flip{right:12px;bottom:12px}
+.camres{position:absolute;left:12px;bottom:12px;font-size:12px;padding:4px 8px;border-radius:8px;background:rgba(0,0,0,.55);color:#ddd}
+
+.todaymini{margin:14px 2px 0;font-size:14px;color:var(--muted);display:flex;align-items:center;gap:10px}
+.todaymini .bar{flex:1;height:6px;border-radius:3px;background:var(--card2);overflow:hidden}
+.todaymini .bar i{display:block;height:100%;background:var(--accent);border-radius:3px}
+.todaymini b{color:var(--text)}
+
+.install{display:flex;gap:12px;align-items:flex-start}
+.install .ico{flex:none;width:40px;height:40px;border-radius:10px;overflow:hidden}
+.install .ico img{width:100%;height:100%}
+.install .txt{flex:1;font-size:14px;color:var(--muted)}
+.install .txt b{color:var(--text);display:block;font-size:15px;margin-bottom:2px}
+.install .x{color:var(--faint);font-size:20px;line-height:1;padding:2px 4px}
+
+/* нижние вкладки */
+.tabs{position:fixed;left:0;right:0;bottom:0;z-index:5;display:flex;justify-content:center;
+  background:rgba(11,11,12,.88);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);
+  border-top:1px solid var(--line);padding:0 var(--sar) var(--sab) var(--sal)}
+.tabs button{flex:1;max-width:186px;display:flex;flex-direction:column;align-items:center;gap:3px;padding:9px 0 7px;font-size:11px;font-weight:600;color:var(--faint)}
+.tabs svg{width:26px;height:26px}
+.tabs button[aria-selected="true"]{color:var(--accent)}
+
+/* экран записи */
+.recscreen{position:fixed;inset:0;z-index:20;background:#000;display:flex;flex-direction:column;
+  padding:calc(var(--sat) + 12px) calc(20px + var(--sar)) calc(var(--sab) + 16px) calc(20px + var(--sal));
+  user-select:none;-webkit-user-select:none}
+.rs-top{display:flex;align-items:center;justify-content:space-between;font-size:14px;color:var(--muted);min-height:32px;transition:opacity .5s}
+.rs-rec{display:flex;align-items:center;gap:8px;color:#fff;font-weight:700;letter-spacing:.08em;font-size:13px}
+.rs-rec i{width:10px;height:10px;border-radius:50%;background:var(--rec);animation:blink 1.6s ease-in-out infinite}
+.recscreen.paused .rs-rec i,.recscreen.away .rs-rec i{background:var(--accent);animation:none}
+@keyframes blink{50%{opacity:.25}}
+.rs-center{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;transition:transform 3s ease,opacity .6s}
+.rs-state{font-size:15px;color:var(--muted);margin-bottom:8px}
+.rs-timer{font-size:clamp(60px,20vw,128px);font-weight:200;letter-spacing:-.03em;font-variant-numeric:tabular-nums;line-height:1}
+.rs-sub{margin-top:14px;color:var(--muted);font-size:15px}
+.rs-next{width:132px;height:3px;border-radius:2px;background:#1f1f22;margin-top:24px;overflow:hidden}
+.rs-next i{display:block;height:100%;width:0;background:var(--accent)}
+.rs-preview{position:absolute;right:calc(16px + var(--sar));top:calc(var(--sat) + 52px);width:92px;border-radius:12px;overflow:hidden;background:#111;transition:opacity .5s}
+.rs-preview video{width:100%;display:block}
+.rs-preview.off{opacity:0 !important}
+.rs-warn{font-size:13px;color:var(--accent);text-align:center;margin:0 0 8px}
+.rs-hint{font-size:13px;color:var(--faint);text-align:center;margin:0 0 14px;transition:opacity .5s}
+.rs-controls{display:grid;grid-template-columns:1fr 1fr;gap:10px;transition:opacity .5s}
+.rs-controls .btn{padding:17px}
+.rs-tools{display:flex;justify-content:center;gap:22px;margin-top:14px;transition:opacity .5s}
+.rs-tools button{font-size:14px;color:var(--muted);font-weight:600;padding:6px}
+.recscreen.dim .rs-top,.recscreen.dim .rs-preview,.recscreen.dim .rs-hint,.recscreen.dim .rs-controls,.recscreen.dim .rs-tools,.recscreen.dim .rs-warn{opacity:0;pointer-events:none}
+.recscreen.dim .rs-center{opacity:.32}
+.recscreen.dim .rs-next{opacity:0}
+.flash .rs-next i{background:#fff}
+
+.awaypanel{position:absolute;inset:0;z-index:2;background:#000;display:flex;flex-direction:column;justify-content:center;
+  padding:24px calc(24px + var(--sar)) calc(var(--sab) + 24px) calc(24px + var(--sal));text-align:center}
+.awaypanel .ico{font-size:56px;margin-bottom:12px}
+.awaypanel h2{font-size:28px}
+.awaypanel p{color:var(--muted);margin:6px 0 26px}
+
+/* модальные окна */
+.modal{position:fixed;inset:0;z-index:40;background:rgba(0,0,0,.62);display:flex;align-items:flex-end;justify-content:center;animation:fadein .15s}
+@keyframes fadein{from{opacity:0}}
+.sheet{width:100%;max-width:560px;background:var(--card);border-radius:24px 24px 0 0;padding:22px calc(20px + var(--sar)) calc(var(--sab) + 20px) calc(20px + var(--sal));max-height:94dvh;overflow:auto;animation:up .2s ease}
+@keyframes up{from{transform:translateY(30px)}}
+@media (min-width:620px){.modal{align-items:center}.sheet{border-radius:24px}}
+.sheet .sub{color:var(--muted);font-size:15px;margin-bottom:6px}
+.sumgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+.sumgrid div{background:var(--card2);border-radius:14px;padding:12px}
+.sumgrid b{display:block;font-size:20px;font-variant-numeric:tabular-nums}
+.sumgrid span{font-size:12px;color:var(--muted)}
+.progress{height:8px;border-radius:4px;background:var(--card2);overflow:hidden;margin:18px 0 10px}
+.progress i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
+.result video{width:100%;max-height:52vh;border-radius:14px;background:#000;display:block;margin-top:14px}
+.stepper{display:flex;align-items:center;justify-content:center;gap:24px;margin:22px 0 4px}
+.stepper button{width:56px;height:56px;border-radius:50%;background:var(--card2);font-size:28px;font-weight:300}
+.stepper .val{font-size:34px;font-weight:600;min-width:130px;text-align:center;font-variant-numeric:tabular-nums}
+
+/* статистика */
+.hero .big{font-size:46px;font-weight:700;letter-spacing:-.03em;line-height:1.05;font-variant-numeric:tabular-nums}
+.goalbar{height:8px;border-radius:4px;background:var(--card2);overflow:hidden;margin:14px 0 8px}
+.goalbar i{display:block;height:100%;background:var(--accent);border-radius:4px;transition:width .4s}
+.hero .meta{display:flex;justify-content:space-between;align-items:center;font-size:14px;color:var(--muted)}
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tile{background:var(--card);border-radius:16px;padding:14px}
+.tile .tv{font-size:21px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.tile .tl{font-size:12px;color:var(--muted);margin-top:2px}
+.chart{position:relative;height:200px;touch-action:pan-y}
+.chart svg{display:block;width:100%;height:100%;overflow:visible}
+.tip{position:absolute;pointer-events:none;background:#2a2a2f;border-radius:10px;padding:8px 10px;font-size:13px;white-space:nowrap;transform:translate(-50%,-100%);box-shadow:0 6px 20px rgba(0,0,0,.4);z-index:2}
+.tip b{display:block;font-size:15px}
+.tip span{color:var(--muted)}
+.day{padding:12px 0;cursor:pointer}
+.day + .day{border-top:1px solid var(--line)}
+.day .dh{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.day .dn{font-weight:600}
+.day .dv{font-weight:700;font-variant-numeric:tabular-nums}
+.day .db{height:4px;border-radius:2px;background:var(--card2);margin:8px 0 6px;overflow:hidden}
+.day .db i{display:block;height:100%;background:var(--accent);border-radius:2px}
+.day .dm{font-size:13px;color:var(--muted)}
+.day .ds{margin-top:8px;font-size:13px;color:var(--muted);display:none}
+.day.open .ds{display:block}
+.day .ds div{padding:3px 0;font-variant-numeric:tabular-nums}
+#storageInfo{white-space:nowrap}
+.empty{text-align:center;color:var(--muted);padding:34px 16px;font-size:15px}
+.empty .e-ico{font-size:40px;margin-bottom:8px}
+
+/* записи */
+.lib{display:flex;gap:14px;background:var(--card);border-radius:var(--r);padding:12px;margin:12px 0}
+.thumb{flex:none;width:84px;height:112px;border-radius:12px;object-fit:cover;background:#000}
+.lib-info{flex:1;min-width:0;display:flex;flex-direction:column}
+.lib-title{font-weight:600}
+.lib-meta{font-size:13px;color:var(--muted);margin-top:2px}
+.lib-actions{display:flex;gap:8px;margin-top:auto;padding-top:10px;flex-wrap:wrap}
+
+.toast{position:fixed;left:50%;bottom:calc(var(--sab) + 96px);transform:translate(-50%,20px);background:#2a2a2f;color:var(--text);padding:11px 16px;border-radius:14px;font-size:14px;opacity:0;pointer-events:none;transition:.25s;z-index:60;max-width:88vw;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.45)}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.offscreen{position:fixed;left:0;top:0;width:2px;height:2px;opacity:0;pointer-events:none}
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <div class="brand"><span class="logo" aria-hidden="true"></span>Лапс</div>
+    <div class="today-pill num" id="topToday">Сегодня 0 мин</div>
+  </header>
+
+  <!-- ===== Съёмка ===== -->
+  <section class="view active" id="view-rec" aria-label="Съёмка">
+    <div class="card install" id="installCard" hidden></div>
+
+    <div class="camwrap" id="camWrap">
+      <video id="preview" playsinline muted autoplay></video>
+      <div class="camempty" id="camEmpty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5A2.5 2.5 0 0 1 5.5 6h1.7l1.3-2h7l1.3 2h1.7A2.5 2.5 0 0 1 21 8.5v9a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/><circle cx="12" cy="13" r="3.8"/></svg>
+        <div id="camMsg">Поставь телефон так, чтобы был виден стол</div>
+        <button class="btn primary" id="camOn">Включить камеру</button>
+      </div>
+      <button class="iconbtn flip" id="flipBtn" aria-label="Сменить камеру" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12a7.5 7.5 0 0 1 13-5.1L19.5 9M19.5 4.5V9H15M19.5 12a7.5 7.5 0 0 1-13 5.1L4.5 15M4.5 19.5V15H9"/></svg>
+      </button>
+      <div class="camres num" id="camRes" hidden></div>
+    </div>
+
+    <div class="card">
+      <div class="label">Кадр каждые</div>
+      <div class="chips" id="intervalChips"></div>
+      <div class="label">Скорость видео</div>
+      <div class="chips" id="fpsChips"></div>
+      <div class="estimate" id="estimate"></div>
+    </div>
+
+    <div class="card rows">
+      <div class="row">
+        <div class="rl">Качество</div>
+        <div class="seg" id="qualitySeg"><button data-v="720">720p</button><button data-v="1080">1080p</button></div>
+      </div>
+      <div class="row">
+        <div class="rl">Время и отвлечения на видео<small>в углу кадра</small></div>
+        <button class="switch" role="switch" id="overlaySw" aria-label="Время на видео"></button>
+      </div>
+    </div>
+
+    <button class="btn primary big" id="startBtn"><span class="recdot"></span>Начать работу</button>
+    <div class="todaymini" id="todayMini"></div>
+  </section>
+
+  <!-- ===== Статистика ===== -->
+  <section class="view" id="view-stats" aria-label="Статистика">
+    <div class="card hero">
+      <div class="label">Сегодня работал</div>
+      <div class="big" id="stToday">0 мин</div>
+      <div class="goalbar"><i id="stGoalFill"></i></div>
+      <div class="meta"><span id="stGoalText"></span><button class="link" id="goalBtn">Изменить цель</button></div>
+    </div>
+    <div class="tiles">
+      <div class="tile"><div class="tv" id="stWeek">—</div><div class="tl">за 7 дней</div></div>
+      <div class="tile"><div class="tv" id="stAvg">—</div><div class="tl">в среднем в день (7 дн.)</div></div>
+      <div class="tile"><div class="tv" id="stStreak">—</div><div class="tl" id="stStreakL">дней подряд</div></div>
+      <div class="tile"><div class="tv" id="stDistr">—</div><div class="tl" id="stDistrL">отвлечений сегодня</div></div>
+    </div>
+    <div class="card">
+      <div class="cardhead">
+        <div class="label">Часы работы по дням</div>
+        <div class="seg" id="rangeSeg"><button data-v="7">7 д</button><button data-v="14">14 д</button><button data-v="30">30 д</button></div>
+      </div>
+      <div class="chart" id="chart"></div>
+    </div>
+    <div class="card">
+      <div class="label">По дням</div>
+      <div id="dayList"></div>
+    </div>
+    <div class="card rows">
+      <button class="row" id="goalRow"><div class="rl">Цель на день</div><span class="chev" id="goalRowV"></span></button>
+      <div class="row"><div class="rl">Автозатемнение экрана при записи<small>остаётся только тусклый таймер</small></div><button class="switch" role="switch" id="dimSw" aria-label="Автозатемнение"></button></div>
+      <button class="row" id="csvBtn"><div class="rl">Экспорт статистики<small>CSV для таблиц</small></div><span class="chev">›</span></button>
+      <div class="row"><div class="rl">Хранилище<small>всё лежит только на этом устройстве</small></div><span class="small num" id="storageInfo">—</span></div>
+    </div>
+  </section>
+
+  <!-- ===== Записи ===== -->
+  <section class="view" id="view-lib" aria-label="Записи">
+    <div id="libList"></div>
+  </section>
+</div>
+
+<nav class="tabs" role="tablist">
+  <button role="tab" data-tab="rec" aria-selected="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.6" fill="currentColor" stroke="none"/></svg>Съёмка</button>
+  <button role="tab" data-tab="stats" aria-selected="false">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 20v-8M12 20V5M19 20v-5"/></svg>Статистика</button>
+  <button role="tab" data-tab="lib" aria-selected="false">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10 9.3v5.4l4.6-2.7z" fill="currentColor"/></svg>Записи</button>
+</nav>
+
+<!-- ===== Экран записи ===== -->
+<div class="recscreen" id="recScreen" hidden>
+  <div class="rs-top">
+    <span class="rs-rec"><i></i><span id="rsRecLabel">REC</span></span>
+    <span class="num" id="rsFrames">0 кадров</span>
+  </div>
+  <div class="rs-preview" id="rsPreviewWrap"><video id="rsPreview" playsinline muted autoplay></video></div>
+  <div class="rs-center" id="rsCenter">
+    <div class="rs-state" id="rsState">Работаешь</div>
+    <div class="rs-timer" id="rsTimer">00:00:00</div>
+    <div class="rs-sub num" id="rsSub"></div>
+    <div class="rs-next"><i id="rsNext"></i></div>
+  </div>
+  <p class="rs-warn" id="rsWarn" hidden></p>
+  <p class="rs-hint" id="rsHint">Положи телефон и работай. Уйдёшь из приложения — засчитаю отвлечение.</p>
+  <div class="rs-controls">
+    <button class="btn" id="pauseBtn">Перерыв</button>
+    <button class="btn danger" id="stopBtn">Закончить</button>
+  </div>
+  <div class="rs-tools">
+    <button id="dimBtn">Затемнить</button>
+    <button id="pvBtn">Скрыть превью</button>
+  </div>
+  <div class="awaypanel" id="away" hidden>
+    <div class="ico">📱</div>
+    <h2 id="awayTitle">Отвлёкся</h2>
+    <p id="awaySub"></p>
+    <div class="stack">
+      <button class="btn primary big" id="awayGo">Вернуться к работе</button>
+      <button class="btn wide" id="awayBreak">Это был перерыв</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="modal" hidden></div>
+<div class="toast" id="toast" role="status"></div>
+<canvas id="capCanvas" class="offscreen" width="2" height="2"></canvas>
+
+<script>
+'use strict';
+/* =========================================================
+   Утилиты
+   ========================================================= */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const LS = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+};
+const DEF = { interval: 5, fps: 30, quality: 720, overlay: true, facing: 'environment', goalMin: 240, autoDim: true, range: 7 };
+const set = Object.assign({}, DEF, LS.get('lapse.settings', {}));
+const saveSet = () => LS.set('lapse.settings', set);
+const INTERVALS = [1, 2, 3, 5, 10, 15, 30, 60];
+const FPS = [24, 30, 60];
+const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+
+const pad2 = (n) => String(n).padStart(2, '0');
+const dayKey = (t = Date.now()) => { const d = new Date(t); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; };
+const keyToDate = (k) => { const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d); };
+const fWeek = new Intl.DateTimeFormat('ru-RU', { weekday: 'short' });
+const fDayLong = new Intl.DateTimeFormat('ru-RU', { weekday: 'short', day: 'numeric', month: 'long' });
+const fDayShort = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short' });
+const fTime = new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit' });
+const cap1 = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+const fmtInt = (n) => Math.round(n).toLocaleString('ru-RU');
+function plural(n, one, few, many) {
+  n = Math.abs(Math.round(n)); const a = n % 10, b = n % 100;
+  if (a === 1 && b !== 11) return one;
+  if (a >= 2 && a <= 4 && (b < 10 || b >= 20)) return few;
+  return many;
+}
+function fmtDur(ms) {
+  const totalMin = Math.floor(ms / 60000), h = Math.floor(totalMin / 60), m = totalMin % 60;
+  if (h && m) return `${h} ч ${m} мин`;
+  if (h) return `${h} ч`;
+  if (m) return `${m} мин`;
+  const s = Math.floor(ms / 1000);
+  return s ? `${s} с` : '0 мин';
+}
+function fmtDurShort(ms) { // для узких мест: 3:12
+  const totalMin = Math.round(ms / 60000);
+  return `${Math.floor(totalMin / 60)}:${pad2(totalMin % 60)}`;
+}
+function fmtTimer(ms) {
+  const s = Math.floor(ms / 1000);
+  return `${pad2(Math.floor(s / 3600))}:${pad2(Math.floor(s / 60) % 60)}:${pad2(s % 60)}`;
+}
+function fmtVid(sec) {
+  if (sec < 10) return `${String(Math.round(sec * 10) / 10).replace('.', ',')} с`;
+  sec = Math.round(sec);
+  if (sec < 60) return `${sec} с`;
+  return `${Math.floor(sec / 60)}:${pad2(sec % 60)}`;
+}
+function fmtBytes(b) {
+  if (b < 1e6) return `${Math.max(1, Math.round(b / 1e3))} КБ`;
+  if (b < 1e9) return `${Math.round(b / 1e6)} МБ`;
+  return `${(b / 1e9).toFixed(1).replace('.', ',')} ГБ`;
+}
+function dayName(k) {
+  const today = dayKey(); const y = new Date(); y.setDate(y.getDate() - 1);
+  if (k === today) return 'Сегодня';
+  if (k === dayKey(y)) return 'Вчера';
+  return cap1(fDayLong.format(keyToDate(k)));
+}
+function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2800);
+}
+function sheet(html, { lock = false } = {}) {
+  const m = $('#modal');
+  m.innerHTML = `<div class="sheet" role="dialog" aria-modal="true">${html}</div>`;
+  m.hidden = false; m.dataset.lock = lock ? '1' : '';
+  const close = () => { m.hidden = true; m.innerHTML = ''; };
+  m.onclick = (e) => { if (e.target === m && m.dataset.lock !== '1') close(); };
+  return { el: m.firstElementChild, close, setLock: (v) => { m.dataset.lock = v ? '1' : ''; } };
+}
+function setSwitch(el, on) { el.setAttribute('aria-checked', on ? 'true' : 'false'); }
+
+/* =========================================================
+   IndexedDB: сессии и кадры
+   ========================================================= */
+let dbp = null;
+function db() {
+  if (!dbp) dbp = new Promise((res, rej) => {
+    const r = indexedDB.open('lapse', 1);
+    r.onupgradeneeded = () => {
+      const d = r.result;
+      d.createObjectStore('sessions', { keyPath: 'id' });
+      const f = d.createObjectStore('frames', { keyPath: 'id', autoIncrement: true });
+      f.createIndex('sid', 'sid');
+    };
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+  return dbp;
+}
+function tx(store, mode, fn) {
+  return db().then((d) => new Promise((res, rej) => {
+    const t = d.transaction(store, mode); const s = t.objectStore(store);
+    let out; const r = fn(s);
+    if (r) r.onsuccess = () => { out = r.result; };
+    t.oncomplete = () => res(out);
+    t.onerror = () => rej(t.error); t.onabort = () => rej(t.error || new Error('abort'));
+  }));
+}
+const idbPut = (st, v) => tx(st, 'readwrite', (s) => s.put(v));
+const idbGet = (st, k) => tx(st, 'readonly', (s) => s.get(k));
+const idbAll = (st) => tx(st, 'readonly', (s) => s.getAll());
+const idbDel = (st, k) => tx(st, 'readwrite', (s) => s.delete(k));
+const frameKeys = (sid) => tx('frames', 'readonly', (s) => s.index('sid').getAllKeys(sid));
+function deleteFrames(sid) {
+  return db().then((d) => new Promise((res, rej) => {
+    const t = d.transaction('frames', 'readwrite'); const st = t.objectStore('frames');
+    const c = st.index('sid').openKeyCursor(IDBKeyRange.only(sid));
+    c.onsuccess = () => { const cur = c.result; if (cur) { st.delete(cur.primaryKey); cur.continue(); } };
+    t.oncomplete = () => res(); t.onerror = () => rej(t.error);
+  }));
+}
+
+/* =========================================================
+   Состояние
+   ========================================================= */
+const S = {
+  stream: null, sessions: [], rec: null, state: 'idle', // idle | recording | paused | away
+  lastTick: 0, target: 0, shotTimer: 0, tickTimer: 0, hiddenAt: 0, wake: null, wakeOk: true,
+  lastSave: 0, dimTimer: 0, driftTimer: 0, awayTimer: 0, capturing: false, tab: 'rec', agg: {}, camWanted: false
+};
+const video = $('#preview');
+
+/* =========================================================
+   Камера
+   ========================================================= */
+function camMessage(msg, btn = true) {
+  $('#camEmpty').hidden = false; $('#camMsg').textContent = msg; $('#camOn').hidden = !btn;
+  $('#flipBtn').hidden = true; $('#camRes').hidden = true;
+}
+async function startCamera() {
+  if (!window.isSecureContext) { camMessage('Камера работает только на сайте с https.', false); return false; }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { camMessage('Этот браузер не даёт доступ к камере. Открой сайт в Safari или Chrome.', false); return false; }
+  stopCamera();
+  const big = set.quality === 1080;
+  try {
+    S.stream = await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: { facingMode: { ideal: set.facing }, width: { ideal: big ? 1920 : 1280 }, height: { ideal: big ? 1080 : 720 } }
+    });
+  } catch (e) {
+    const denied = e && (e.name === 'NotAllowedError' || e.name === 'SecurityError');
+    camMessage(denied
+      ? 'Нет доступа к камере. Разреши камеру для этого сайта в настройках браузера и нажми ещё раз.'
+      : 'Не получилось включить камеру' + (e && e.message ? `: ${e.message}` : '.'));
+    return false;
+  }
+  S.camWanted = true;
+  video.srcObject = S.stream; $('#rsPreview').srcObject = S.stream;
+  try { await video.play(); } catch {}
+  $('#rsPreview').play().catch(() => {});
+  const mirror = set.facing === 'user';
+  $('#camWrap').classList.toggle('mirror', mirror); $('#rsPreviewWrap').classList.toggle('mirror', mirror);
+  $('#camEmpty').hidden = true; $('#flipBtn').hidden = false;
+  const tr = S.stream.getVideoTracks()[0];
+  if (tr) tr.addEventListener('ended', () => { if (S.state === 'idle') camMessage('Камера отключилась'); });
+  return true;
+}
+function stopCamera() {
+  if (S.stream) S.stream.getTracks().forEach((t) => t.stop());
+  S.stream = null; video.srcObject = null; $('#rsPreview').srcObject = null;
+}
+async function ensureCamera() {
+  const tr = S.stream && S.stream.getVideoTracks()[0];
+  if (!tr || tr.readyState === 'ended') return startCamera();
+  if (video.paused) video.play().catch(() => {});
+  if ($('#rsPreview').paused) $('#rsPreview').play().catch(() => {});
+  return true;
+}
+async function cameraGranted() {
+  try { const p = await navigator.permissions.query({ name: 'camera' }); return p.state === 'granted'; } catch { return false; }
+}
+function updateCamRes() {
+  if (!video.videoWidth) return;
+  const L = set.quality === 1080 ? 1920 : 1280;
+  const sc = Math.min(1, L / Math.max(video.videoWidth, video.videoHeight));
+  const w = Math.round(video.videoWidth * sc / 2) * 2, h = Math.round(video.videoHeight * sc / 2) * 2;
+  $('#camRes').textContent = `${w}×${h}`; $('#camRes').hidden = false;
+}
+video.addEventListener('loadedmetadata', updateCamRes);
+video.addEventListener('resize', updateCamRes);
+
+/* =========================================================
+   Захват кадра
+   ========================================================= */
+const capCanvas = $('#capCanvas');
+const capCtx = capCanvas.getContext('2d', { alpha: false });
+async function captureFrame() {
+  if (S.capturing || !S.rec) return;
+  const vw = video.videoWidth, vh = video.videoHeight;
+  if (!vw || !vh || video.readyState < 2) return;
+  S.capturing = true;
+  try {
+    const L = S.rec.quality === 1080 ? 1920 : 1280;
+    const sc = Math.min(1, L / Math.max(vw, vh));
+    const w = Math.max(2, Math.round(vw * sc / 2) * 2), h = Math.max(2, Math.round(vh * sc / 2) * 2);
+    if (capCanvas.width !== w || capCanvas.height !== h) { capCanvas.width = w; capCanvas.height = h; }
+    capCtx.drawImage(video, 0, 0, w, h);
+    const blob = await new Promise((r) => capCanvas.toBlob(r, 'image/jpeg', 0.82));
+    if (!blob || !S.rec) return;
+    const buf = await blob.arrayBuffer();
+    const sid = S.rec.id;
+    await idbPut('frames', { sid, t: Date.now(), w, h, buf });
+    if (!S.rec || S.rec.id !== sid) return;
+    S.rec.frames++; S.rec.bytes = (S.rec.bytes || 0) + buf.byteLength;
+    if (!S.rec.w) { S.rec.w = w; S.rec.h = h; }
+    if (!S.rec.thumb) S.rec.thumb = makeThumb(w, h);
+    flashShot();
+    updateRecUI();
+    saveRec();
+  } finally { S.capturing = false; }
+}
+function makeThumb(w, h) {
+  const c = document.createElement('canvas'); const tw = 168, th = 224;
+  c.width = tw; c.height = th; const x = c.getContext('2d');
+  const s = Math.max(tw / w, th / h); const dw = w * s, dh = h * s;
+  x.drawImage(capCanvas, (tw - dw) / 2, (th - dh) / 2, dw, dh);
+  return c.toDataURL('image/jpeg', 0.7);
+}
+function flashShot() {
+  const bar = $('#rsNext'); if (!bar || !S.rec) return;
+  bar.style.transition = 'none'; bar.style.width = '0%';
+  void bar.offsetWidth;
+  bar.style.transition = `width ${S.rec.interval}s linear`; bar.style.width = '100%';
+}
+function shotLoop() {
+  clearTimeout(S.shotTimer);
+  if (S.state !== 'recording' || !S.rec) return;
+  const delay = Math.max(0, S.target - performance.now());
+  S.shotTimer = setTimeout(async () => {
+    if (S.state !== 'recording' || document.hidden) return;
+    try { await captureFrame(); } catch (e) { console.warn('capture', e); }
+    if (!S.rec) return;
+    const iv = S.rec.interval * 1000; const now = performance.now();
+    S.target += iv;
+    if (S.target < now - iv) S.target = now; // сильно отстали — не догоняем пачкой
+    shotLoop();
+  }, delay);
+}
+
+/* =========================================================
+   Учёт рабочего времени
+   ========================================================= */
+function addWork(d) {
+  const r = S.rec; if (!r || d <= 0) return;
+  r.activeMs += d; const k = dayKey();
+  r.byDay[k] = (r.byDay[k] || 0) + d;
+}
+function tick() {
+  const now = performance.now();
+  let d = now - S.lastTick; S.lastTick = now;
+  d = Math.min(Math.max(d, 0), 5000);
+  if (S.state === 'recording' && !document.hidden) addWork(d);
+  else if (S.state === 'paused' && S.rec) S.rec.breakMs += d;
+  updateRecUI(); saveRec();
+}
+function saveRec(force) {
+  if (!S.rec) return;
+  const now = Date.now();
+  if (!force && now - S.lastSave < 2000) return;
+  S.lastSave = now; S.rec.lastSaved = now;
+  idbPut('sessions', S.rec).catch((e) => console.warn('save', e));
+}
+function todayMs() {
+  const k = dayKey(); let t = 0;
+  for (const s of S.sessions) t += (s.byDay && s.byDay[k]) || 0;
+  return t;
+}
+
+/* =========================================================
+   Запись: старт, пауза, отвлечения, стоп
+   ========================================================= */
+async function startRecording() {
+  const btn = $('#startBtn'); btn.disabled = true;
+  try {
+    if (!(await ensureCamera())) return;
+    if (!video.videoWidth) await new Promise((r) => { video.addEventListener('loadeddata', r, { once: true }); setTimeout(r, 2500); });
+    if (!video.videoWidth) { toast('Камера ещё не готова — попробуй ещё раз'); return; }
+    try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch {}
+    const now = Date.now();
+    S.rec = {
+      id: 's' + now, start: now, end: null, status: 'recording',
+      interval: set.interval, fps: set.fps, quality: set.quality, overlay: set.overlay,
+      frames: 0, bytes: 0, activeMs: 0, byDay: {}, breakMs: 0, distractions: [],
+      thumb: null, hasFrames: true, w: 0, h: 0, lastSaved: now
+    };
+    S.sessions.push(S.rec);
+    saveRec(true);
+    beginLoops();
+    S.target = performance.now() + 300;
+    shotLoop();
+  } finally { btn.disabled = false; }
+}
+function beginLoops() {
+  S.state = 'recording'; S.lastTick = performance.now();
+  clearInterval(S.tickTimer); S.tickTimer = setInterval(tick, 500);
+  enterRecScreen(); lockScreen(); updateRecUI(); poke();
+}
+function enterRecScreen() {
+  const rs = $('#recScreen'); rs.hidden = false; document.body.style.overflow = 'hidden';
+  rs.classList.remove('paused', 'away', 'dim');
+  $('#rsPreviewWrap').classList.toggle('off', !!LS.get('lapse.pvHidden', false));
+  $('#pvBtn').textContent = LS.get('lapse.pvHidden', false) ? 'Показать превью' : 'Скрыть превью';
+  $('#rsPreview').play().catch(() => {});
+}
+function exitRecScreen() {
+  $('#recScreen').hidden = true; $('#away').hidden = true; document.body.style.overflow = '';
+  clearTimeout(S.dimTimer); clearInterval(S.driftTimer); $('#rsCenter').style.transform = '';
+}
+function pauseRecording() {
+  if (S.state !== 'recording') return;
+  tick(); S.state = 'paused'; clearTimeout(S.shotTimer);
+  $('#rsNext').style.transition = 'none'; $('#rsNext').style.width = '0%';
+  updateRecUI(); saveRec(true); poke();
+}
+function resumeRecording() {
+  if (!S.rec || document.hidden) return;
+  $('#away').hidden = true; clearInterval(S.awayTimer);
+  S.state = 'recording'; S.lastTick = performance.now();
+  S.target = performance.now() + 600; shotLoop();
+  updateRecUI(); saveRec(true); poke();
+}
+async function stopRecording() {
+  if (!S.rec) return;
+  tick();
+  clearTimeout(S.shotTimer); clearInterval(S.tickTimer); clearInterval(S.awayTimer);
+  S.state = 'idle';
+  const r = S.rec; S.rec = null;
+  r.end = Date.now(); r.status = 'done';
+  releaseWake(); exitRecScreen();
+  if (r.frames < 2 && r.activeMs < 15000) {
+    S.sessions = S.sessions.filter((s) => s !== r);
+    await idbDel('sessions', r.id).catch(() => {});
+    await deleteFrames(r.id).catch(() => {});
+    toast('Запись слишком короткая — не сохранил');
+  } else {
+    await idbPut('sessions', r).catch(() => {});
+    showSummary(r);
+  }
+  refreshAll();
+  if (S.tab !== 'rec') stopCamera();
+}
+function onHidden() {
+  if (S.state === 'recording') {
+    tick();
+    S.state = 'away'; S.hiddenAt = Date.now(); clearTimeout(S.shotTimer);
+    saveRec(true);
+  } else if (S.state === 'paused') {
+    tick(); S.hiddenAt = Date.now(); saveRec(true);
+  } else if (S.state === 'away' && S.rec) {
+    // ушёл снова, пока висел экран «Отвлёкся» — продлим то же отвлечение
+    clearInterval(S.awayTimer);
+    if (!$('#away').hidden) { S.extendLast = true; S.hiddenAt = Date.now(); }
+  } else if (S.state === 'idle' && S.stream) {
+    stopCamera(); // не жжём батарею в фоне
+  }
+}
+async function onVisible() {
+  if (S.state === 'idle') {
+    if (S.tab === 'rec' && S.camWanted && !S.stream) startCamera();
+    refreshAll();
+    return;
+  }
+  S.lastTick = performance.now();
+  if (S.state === 'paused' && S.rec && S.hiddenAt) { S.rec.breakMs += Math.max(0, Date.now() - S.hiddenAt); S.hiddenAt = 0; updateRecUI(); }
+  lockScreen();
+  await ensureCamera();
+  if (S.state !== 'away' || !S.rec) return;
+  const ms = Date.now() - S.hiddenAt;
+  const last = S.rec.distractions[S.rec.distractions.length - 1];
+  if (S.extendLast && last) { S.extendLast = false; last.ms += ms; saveRec(true); showAway(last.ms); return; }
+  S.extendLast = false;
+  if (ms < 3000) { resumeRecording(); return; }
+  S.rec.distractions.push({ at: S.hiddenAt, ms, frame: S.rec.frames });
+  saveRec(true);
+  showAway(ms);
+}
+function showAway(ms) {
+  const r = S.rec; const n = r.distractions.length;
+  $('#awayTitle').textContent = `Отвлёкся на ${fmtDur(ms)}`;
+  $('#awaySub').textContent = `Это время не засчитано в работу. За сессию: ${n} ${plural(n, 'отвлечение', 'отвлечения', 'отвлечений')}.`;
+  $('#away').hidden = false; $('#recScreen').classList.remove('dim');
+  updateRecUI();
+  let left = 10; const go = $('#awayGo');
+  const label = () => { go.textContent = `Вернуться к работе · ${left}`; };
+  label(); clearInterval(S.awayTimer);
+  S.awayTimer = setInterval(() => { left--; if (left <= 0) { clearInterval(S.awayTimer); resumeRecording(); } else label(); }, 1000);
+}
+function awayWasBreak() {
+  const r = S.rec; if (!r) return;
+  clearInterval(S.awayTimer);
+  const d = r.distractions.pop(); if (d) r.breakMs += d.ms;
+  $('#away').hidden = true;
+  S.state = 'paused'; S.lastTick = performance.now();
+  updateRecUI(); saveRec(true); refreshAll(); poke();
+}
+
+/* экран не гаснет */
+async function lockScreen() {
+  try {
+    if ('wakeLock' in navigator) {
+      if (S.wake) return;
+      S.wake = await navigator.wakeLock.request('screen');
+      S.wake.addEventListener('release', () => { S.wake = null; });
+      S.wakeOk = true;
+    } else S.wakeOk = false;
+  } catch { S.wakeOk = false; }
+  const w = $('#rsWarn');
+  w.hidden = S.wakeOk;
+  if (!S.wakeOk) w.textContent = isIOS
+    ? 'Экран может погаснуть: Настройки → Экран и яркость → Автоблокировка → Никогда'
+    : 'Экран может погаснуть — отключи автоблокировку в настройках телефона';
+}
+function releaseWake() { try { S.wake && S.wake.release(); } catch {} S.wake = null; }
+
+/* затемнение */
+function poke() {
+  const rs = $('#recScreen'); rs.classList.remove('dim');
+  clearTimeout(S.dimTimer);
+  if (set.autoDim && S.state === 'recording') S.dimTimer = setTimeout(dimNow, 12000);
+}
+function dimNow() {
+  if (S.state === 'idle' || !$('#away').hidden) return;
+  $('#recScreen').classList.add('dim');
+  clearInterval(S.driftTimer);
+  S.driftTimer = setInterval(() => { // сдвигаем таймер, чтобы не выжигать экран
+    if (!$('#recScreen').classList.contains('dim')) return;
+    const x = Math.round((Math.random() - 0.5) * 60), y = Math.round((Math.random() - 0.5) * 120);
+    $('#rsCenter').style.transform = `translate(${x}px,${y}px)`;
+  }, 45000);
+}
+
+function updateRecUI() {
+  const r = S.rec; if (!r) return;
+  const rs = $('#recScreen');
+  rs.classList.toggle('paused', S.state === 'paused');
+  rs.classList.toggle('away', S.state === 'away');
+  $('#rsTimer').textContent = fmtTimer(r.activeMs);
+  $('#rsState').textContent = S.state === 'paused' ? `Перерыв · ${fmtDur(r.breakMs)}` : S.state === 'away' ? 'Не в приложении' : 'Работаешь';
+  $('#rsRecLabel').textContent = S.state === 'paused' ? 'ПАУЗА' : 'REC';
+  $('#rsFrames').textContent = `${fmtInt(r.frames)} ${plural(r.frames, 'кадр', 'кадра', 'кадров')} · кадр каждые ${r.interval} с`;
+  $('#rsSub').textContent = `Сегодня ${fmtDur(todayMs())} · видео ${fmtVid(r.frames / r.fps)}`;
+  $('#pauseBtn').textContent = S.state === 'paused' ? 'Продолжить' : 'Перерыв';
+  $('#pauseBtn').classList.toggle('primary', S.state === 'paused');
+  $('#topToday').textContent = `Сегодня ${fmtDur(todayMs())}`;
+}
+
+function showSummary(r) {
+  const n = r.distractions.length; const dMs = r.distractions.reduce((a, d) => a + d.ms, 0);
+  const m = sheet(`
+    <h2>Сессия сохранена</h2>
+    <div class="sub">${esc(fTime.format(r.start))}–${esc(fTime.format(r.end))}</div>
+    <div class="sumgrid">
+      <div><b>${fmtDur(r.activeMs)}</b><span>работы</span></div>
+      <div><b>${fmtVid(r.frames / r.fps)}</b><span>видео · ${fmtInt(r.frames)} ${plural(r.frames, 'кадр', 'кадра', 'кадров')}</span></div>
+      <div><b>${n}</b><span>${plural(n, 'отвлечение', 'отвлечения', 'отвлечений')}${n ? ' · ' + fmtDur(dMs) : ''}</span></div>
+      <div><b>${fmtDur(r.breakMs)}</b><span>перерывов</span></div>
+    </div>
+    <div class="stack">
+      <button class="btn primary big" data-a="make">Собрать видео</button>
+      <button class="btn wide" data-a="later">Потом</button>
+    </div>`);
+  m.el.querySelector('[data-a=make]').onclick = () => { m.close(); openExport(r); };
+  m.el.querySelector('[data-a=later]').onclick = m.close;
+}
+
+/* восстановление, если приложение закрылось во время записи */
+async function recoverStale() {
+  const stale = S.sessions.filter((s) => s.status === 'recording').sort((a, b) => b.lastSaved - a.lastSaved);
+  if (!stale.length) return;
+  const [last, ...older] = stale;
+  try { last.frames = (await frameKeys(last.id)).length; } catch {}
+  for (const s of older) { s.status = 'done'; s.end = s.lastSaved; idbPut('sessions', s); }
+  const gap = Date.now() - last.lastSaved;
+  if (gap > 6 * 3600e3) { last.status = 'done'; last.end = last.lastSaved; idbPut('sessions', last); refreshAll(); return; }
+  const m = sheet(`
+    <h2>Запись прервалась</h2>
+    <div class="sub">Приложение закрылось ${fmtDur(gap)} назад. В сессии уже ${fmtDur(last.activeMs)} работы и ${fmtInt(last.frames)} ${plural(last.frames, 'кадр', 'кадра', 'кадров')}.</div>
+    <div class="stack">
+      <button class="btn primary big" data-a="go">Продолжить запись</button>
+      <button class="btn wide" data-a="end">Завершить сессию</button>
+    </div>`, { lock: true });
+  m.el.querySelector('[data-a=go]').onclick = async () => {
+    m.close();
+    if (!(await ensureCamera())) { toast('Без камеры продолжить не получится'); return; }
+    S.rec = last; S.hiddenAt = last.lastSaved; S.state = 'away';
+    S.lastTick = performance.now();
+    clearInterval(S.tickTimer); S.tickTimer = setInterval(tick, 500);
+    enterRecScreen(); lockScreen();
+    last.distractions.push({ at: last.lastSaved, ms: gap, frame: last.frames });
+    saveRec(true); showAway(gap);
+  };
+  m.el.querySelector('[data-a=end]').onclick = () => {
+    m.close(); last.status = 'done'; last.end = last.lastSaved; idbPut('sessions', last); refreshAll();
+    if (last.frames >= 2) showSummary(last);
+  };
+}
+
+/* =========================================================
+   Сборка видео: WebCodecs + свой MP4-муксер, запасной путь — MediaRecorder
+   ========================================================= */
+const MP4 = (() => {
+  const te = new TextEncoder();
+  const u32 = (n) => [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255];
+  const u16 = (n) => [(n >>> 8) & 255, n & 255];
+  const str = (s) => Array.from(te.encode(s));
+  const zeros = (n) => new Array(n).fill(0);
+  function box(type, ...parts) {
+    const arrs = parts.map((p) => (p instanceof Uint8Array ? p : Uint8Array.from(p)));
+    let len = 8; for (const a of arrs) len += a.length;
+    const out = new Uint8Array(len);
+    out.set(u32(len), 0); out.set(str(type), 4);
+    let o = 8; for (const a of arrs) { out.set(a, o); o += a.length; }
+    return out;
+  }
+  const full = (type, v, flags, ...parts) => box(type, [v, (flags >> 16) & 255, (flags >> 8) & 255, flags & 255], ...parts);
+  const MATRIX = [...u32(0x00010000), ...u32(0), ...u32(0), ...u32(0), ...u32(0x00010000), ...u32(0), ...u32(0), ...u32(0), ...u32(0x40000000)];
+  function u32list(list) { const a = new Uint8Array(list.length * 4); const dv = new DataView(a.buffer); list.forEach((v, i) => dv.setUint32(i * 4, v >>> 0)); return a; }
+  function i32list(list) { const a = new Uint8Array(list.length * 4); const dv = new DataView(a.buffer); list.forEach((v, i) => dv.setInt32(i * 4, v | 0)); return a; }
+
+  function make({ width, height, fps, chunks, avcC }) {
+    const timescale = 90000, sd = Math.round(timescale / fps), n = chunks.length;
+    const dur = n * sd, durMs = Math.round(dur * 1000 / timescale);
+    const sizes = chunks.map((c) => c.data.length);
+    const dataSize = sizes.reduce((a, b) => a + b, 0);
+    const keys = []; chunks.forEach((c, i) => { if (c.key) keys.push(i + 1); });
+    const usPerFrame = 1e6 / fps;
+    const offs = chunks.map((c, i) => Math.round((c.ts - i * usPerFrame) * timescale / 1e6));
+    const needCtts = offs.some((o) => o !== 0);
+
+    const ftyp = box('ftyp', [...str('isom'), ...u32(512), ...str('isom'), ...str('iso2'), ...str('avc1'), ...str('mp41')]);
+    const moov = (chunkOffset) => {
+      const mvhd = full('mvhd', 0, 0, [...u32(0), ...u32(0), ...u32(1000), ...u32(durMs), ...u32(0x00010000), ...u16(0x0100), ...zeros(10), ...MATRIX, ...zeros(24), ...u32(2)]);
+      const tkhd = full('tkhd', 0, 3, [...u32(0), ...u32(0), ...u32(1), ...u32(0), ...u32(durMs), ...zeros(8), ...u16(0), ...u16(0), ...u16(0), ...u16(0), ...MATRIX, ...u32(width * 65536), ...u32(height * 65536)]);
+      const mdhd = full('mdhd', 0, 0, [...u32(0), ...u32(0), ...u32(timescale), ...u32(dur), ...u16(0x55c4), ...u16(0)]);
+      const hdlr = full('hdlr', 0, 0, [...u32(0), ...str('vide'), ...zeros(12), ...str('VideoHandler'), 0]);
+      const vmhd = full('vmhd', 0, 1, zeros(8));
+      const dinf = box('dinf', full('dref', 0, 0, u32(1), full('url ', 0, 1)));
+      const avc1 = box('avc1', [...zeros(6), ...u16(1), ...u16(0), ...u16(0), ...zeros(12), ...u16(width), ...u16(height),
+        ...u32(0x00480000), ...u32(0x00480000), ...u32(0), ...u16(1), ...zeros(32), ...u16(0x0018), ...u16(0xffff)], box('avcC', avcC));
+      const stsd = full('stsd', 0, 0, u32(1), avc1);
+      const stts = full('stts', 0, 0, [...u32(1), ...u32(n), ...u32(sd)]);
+      const parts = [stsd, stts];
+      if (needCtts) parts.push(full('ctts', 1, 0, u32(n), (() => { const l = []; offs.forEach((o) => { l.push(1, o); }); return i32list(l); })()));
+      if (keys.length < n) parts.push(full('stss', 0, 0, u32(keys.length), u32list(keys)));
+      parts.push(full('stsc', 0, 0, [...u32(1), ...u32(1), ...u32(n), ...u32(1)]));
+      parts.push(full('stsz', 0, 0, u32(0), u32(n), u32list(sizes)));
+      parts.push(full('stco', 0, 0, u32(1), u32(chunkOffset)));
+      const stbl = box('stbl', ...parts);
+      const minf = box('minf', vmhd, dinf, stbl);
+      const mdia = box('mdia', mdhd, hdlr, minf);
+      const trak = box('trak', tkhd, mdia);
+      return box('moov', mvhd, trak);
+    };
+    let mv = moov(0);
+    mv = moov(ftyp.length + mv.length + 8);
+    const mdatHdr = Uint8Array.from([...u32(dataSize + 8), ...str('mdat')]);
+    return new Blob([ftyp, mv, mdatHdr, ...chunks.map((c) => c.data)], { type: 'video/mp4' });
+  }
+  return { make };
+})();
+
+async function loadFrame(key) {
+  const f = await idbGet('frames', key);
+  const blob = new Blob([f.buf], { type: 'image/jpeg' });
+  let img = null;
+  if (window.createImageBitmap) { try { img = await createImageBitmap(blob); } catch { img = null; } }
+  if (!img) {
+    img = await new Promise((res, rej) => {
+      const u = URL.createObjectURL(blob); const im = new Image();
+      im.onload = () => { URL.revokeObjectURL(u); res(im); }; im.onerror = rej; im.src = u;
+    });
+  }
+  return { img, t: f.t, w: img.width || f.w, h: img.height || f.h };
+}
+function makeSequencer(keys) {
+  let idx = -1, cur = null, next = null;
+  return async (i) => {
+    const k = Math.min(i, keys.length - 1);
+    if (k === idx) return cur;
+    const p = next && next.k === k ? next.p : loadFrame(keys[k]);
+    const fr = await p;
+    if (cur && cur.img.close) cur.img.close();
+    idx = k; cur = fr;
+    next = k + 1 < keys.length ? { k: k + 1, p: loadFrame(keys[k + 1]) } : null;
+    return fr;
+  };
+}
+function drawOverlay(ctx, W, H, t, note) {
+  const s = Math.max(16, Math.round(Math.min(W, H) * 0.05));
+  const pad = Math.round(s * 0.75);
+  const font = '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif';
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,.65)'; ctx.shadowBlur = s * 0.35; ctx.fillStyle = '#fff';
+  ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+  ctx.font = `600 ${s}px ${font}`;
+  ctx.fillText(fTime.format(t), pad, H - pad);
+  ctx.globalAlpha = 0.85; ctx.font = `500 ${Math.round(s * 0.55)}px ${font}`;
+  ctx.fillText(fDayShort.format(t), pad, H - pad - s * 1.05);
+  ctx.restore();
+  if (note) {
+    ctx.save();
+    const fs = Math.round(s * 0.6);
+    ctx.font = `600 ${fs}px ${font}`;
+    const tw = ctx.measureText(note).width;
+    const bw = tw + fs * 1.4, bh = fs * 1.9, x = pad, y = pad;
+    ctx.fillStyle = 'rgba(255,69,58,.92)';
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x, y, bw, bh, bh / 2); else ctx.rect(x, y, bw, bh);
+    ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.textBaseline = 'middle';
+    ctx.fillText(note, x + fs * 0.7, y + bh / 2 + 1);
+    ctx.restore();
+  }
+}
+async function renderVideo(sess, opts, onProgress, isCancelled) {
+  const keys = await frameKeys(sess.id);
+  if (!keys.length) throw new Error('У этой записи нет кадров');
+  const seq = makeSequencer(keys);
+  const first = await seq(0);
+  const W = Math.max(2, first.w - (first.w % 2)), H = Math.max(2, first.h - (first.h % 2));
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d', { alpha: false });
+  const fps = opts.fps;
+  const notes = new Map();
+  if (opts.overlay) for (const d of sess.distractions || []) {
+    const txt = `📱 отвлёкся на ${fmtDur(d.ms)}`;
+    for (let i = 0; i < Math.round(fps * 1.5); i++) notes.set(d.frame + i, txt);
+  }
+  const hold = keys.length > 1 ? Math.round(fps * 0.6) : fps * 2;
+  const total = keys.length + hold;
+  const draw = async (i) => {
+    const fr = await seq(i);
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+    const sc = Math.min(W / fr.w, H / fr.h); const dw = fr.w * sc, dh = fr.h * sc;
+    ctx.drawImage(fr.img, (W - dw) / 2, (H - dh) / 2, dw, dh);
+    if (opts.overlay) drawOverlay(ctx, W, H, fr.t, notes.get(Math.min(i, keys.length - 1)));
+  };
+  const job = { W, H, fps, total, draw, cv, onProgress, isCancelled };
+  if (window.VideoEncoder && window.VideoFrame) {
+    try { return await encodeWebCodecs(job); }
+    catch (e) { if (e && e.message === 'cancel') throw e; console.warn('WebCodecs не сработал, пробую MediaRecorder', e); }
+  }
+  return encodeMediaRecorder(job);
+}
+async function encodeWebCodecs({ W, H, fps, total, draw, cv, onProgress, isCancelled }) {
+  const bitrate = Math.round(Math.min(12e6, Math.max(2.5e6, W * H * fps * 0.12)));
+  const base = { width: W, height: H, bitrate, framerate: fps, avc: { format: 'avc' } };
+  let config = null;
+  for (const codec of ['avc1.42002a', 'avc1.420028', 'avc1.4d002a', 'avc1.4d0028', 'avc1.64002a', 'avc1.640028', 'avc1.42001f']) {
+    try { const s = await VideoEncoder.isConfigSupported({ ...base, codec }); if (s && s.supported) { config = { ...base, codec }; break; } } catch {}
+  }
+  if (!config) throw new Error('H.264 недоступен');
+  const chunks = []; let avcC = null; let err = null;
+  const enc = new VideoEncoder({
+    output: (chunk, meta) => {
+      const d = meta && meta.decoderConfig && meta.decoderConfig.description;
+      if (d && !avcC) avcC = d instanceof ArrayBuffer ? new Uint8Array(d.slice(0)) : new Uint8Array(d.buffer.slice(d.byteOffset, d.byteOffset + d.byteLength));
+      const buf = new Uint8Array(chunk.byteLength); chunk.copyTo(buf);
+      chunks.push({ data: buf, key: chunk.type === 'key', ts: chunk.timestamp });
+    },
+    error: (e) => { err = e; }
+  });
+  enc.configure(config);
+  const us = 1e6 / fps;
+  try {
+    for (let i = 0; i < total; i++) {
+      if (err) throw err;
+      if (isCancelled()) throw new Error('cancel');
+      await draw(i);
+      const vf = new VideoFrame(cv, { timestamp: Math.round(i * us), duration: Math.round(us) });
+      enc.encode(vf, { keyFrame: i % (fps * 2) === 0 });
+      vf.close();
+      while (enc.encodeQueueSize > 3 && !err) await sleep(5);
+      if (i % 3 === 0) onProgress(i / total);
+    }
+    await enc.flush();
+  } finally { try { enc.close(); } catch {} }
+  if (err) throw err;
+  if (!avcC || !chunks.length || !chunks[0].key) throw new Error('кодировщик вернул пустой поток');
+  onProgress(1);
+  return { blob: MP4.make({ width: W, height: H, fps, chunks, avcC }), ext: 'mp4' };
+}
+async function encodeMediaRecorder({ W, H, fps, total, draw, cv, onProgress, isCancelled }) {
+  if (!window.MediaRecorder || !cv.captureStream) throw new Error('Этот браузер не умеет собирать видео. Обнови iOS/Chrome.');
+  const types = ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+  const mime = types.find((t) => { try { return MediaRecorder.isTypeSupported(t); } catch { return false; } }) || '';
+  cv.className = 'offscreen'; document.body.appendChild(cv);
+  await draw(0);
+  let stream = cv.captureStream(0); let track = stream.getVideoTracks()[0];
+  const manual = track && typeof track.requestFrame === 'function';
+  if (!manual) { track && track.stop(); stream = cv.captureStream(fps); track = stream.getVideoTracks()[0]; }
+  const bitrate = Math.round(Math.min(12e6, Math.max(2.5e6, W * H * fps * 0.12)));
+  const rec = new MediaRecorder(stream, mime ? { mimeType: mime, videoBitsPerSecond: bitrate } : { videoBitsPerSecond: bitrate });
+  const parts = []; rec.ondataavailable = (e) => { if (e.data && e.data.size) parts.push(e.data); };
+  const stopped = new Promise((r) => { rec.onstop = r; });
+  rec.start(1000);
+  const fd = 1000 / fps; const t0 = performance.now();
+  try {
+    for (let i = 0; i < total; i++) {
+      if (isCancelled()) throw new Error('cancel');
+      await draw(i); if (manual) track.requestFrame();
+      const wait = t0 + (i + 1) * fd - performance.now(); if (wait > 0) await sleep(wait);
+      if (i % 3 === 0) onProgress(i / total);
+    }
+  } finally {
+    if (rec.state !== 'inactive') rec.stop();
+    await stopped; track && track.stop(); cv.remove();
+  }
+  const type = (rec.mimeType || mime || 'video/webm').split(';')[0];
+  return { blob: new Blob(parts, { type }), ext: type.includes('mp4') ? 'mp4' : 'webm' };
+}
+
+function openExport(sess) {
+  const o = { fps: sess.fps || set.fps, overlay: sess.overlay !== false };
+  const m = sheet(`
+    <h2>Собрать видео</h2>
+    <div class="sub">${esc(dayName(dayKey(sess.start)))}, ${esc(fTime.format(sess.start))} · ${fmtInt(sess.frames)} ${plural(sess.frames, 'кадр', 'кадра', 'кадров')}</div>
+    <div class="label" style="margin-top:16px">Скорость</div>
+    <div class="chips" data-r="fps">${FPS.map((f) => `<button class="chip" data-v="${f}">${f} к/с</button>`).join('')}</div>
+    <div class="row" style="padding:0 0 6px"><div class="rl">Время и отвлечения на видео</div><button class="switch" role="switch" data-r="ov" aria-label="Время на видео"></button></div>
+    <div class="estimate" data-r="est"></div>
+    <div class="stack"><button class="btn primary big" data-r="go">Собрать</button></div>`);
+  const el = m.el;
+  const sync = () => {
+    $$('[data-r=fps] .chip', el).forEach((b) => b.setAttribute('aria-pressed', String(+b.dataset.v === o.fps)));
+    setSwitch($('[data-r=ov]', el), o.overlay);
+    $('[data-r=est]', el).innerHTML = `Длина видео: <b>${fmtVid(sess.frames / o.fps)}</b>`;
+  };
+  $$('[data-r=fps] .chip', el).forEach((b) => { b.onclick = () => { o.fps = +b.dataset.v; sync(); }; });
+  $('[data-r=ov]', el).onclick = () => { o.overlay = !o.overlay; sync(); };
+  sync();
+  $('[data-r=go]', el).onclick = () => runExport(sess, o, m);
+}
+async function runExport(sess, o, m) {
+  let cancelled = false;
+  m.setLock(true);
+  m.el.innerHTML = `
+    <h2>Собираю видео…</h2>
+    <div class="sub">Не сворачивай приложение, пока идёт сборка.</div>
+    <div class="progress"><i id="expBar"></i></div>
+    <div class="small num" id="expPct">0%</div>
+    <div class="stack"><button class="btn wide" id="expCancel">Отмена</button></div>`;
+  $('#expCancel').onclick = () => { cancelled = true; };
+  const t0 = performance.now();
+  let res;
+  try {
+    res = await renderVideo(sess, o, (p) => {
+      const pct = Math.round(p * 100);
+      $('#expBar') && ($('#expBar').style.width = pct + '%');
+      if ($('#expPct')) {
+        const el = (performance.now() - t0) / 1000; const left = p > 0.03 ? Math.max(0, el / p - el) : null;
+        $('#expPct').textContent = `${pct}%` + (left != null ? ` · осталось ~${Math.ceil(left)} с` : '');
+      }
+    }, () => cancelled);
+  } catch (e) {
+    m.setLock(false);
+    if (e && e.message === 'cancel') { m.close(); toast('Сборка отменена'); return; }
+    m.el.innerHTML = `<h2>Не получилось собрать видео</h2><div class="sub">${esc(e && e.message ? e.message : String(e))}</div><div class="stack"><button class="btn wide" id="expClose">Закрыть</button></div>`;
+    $('#expClose').onclick = m.close; return;
+  }
+  m.setLock(false);
+  const d = new Date(sess.start);
+  const name = `lapse-${dayKey(sess.start)}-${pad2(d.getHours())}${pad2(d.getMinutes())}.${res.ext}`;
+  const file = new File([res.blob], name, { type: res.blob.type });
+  const url = URL.createObjectURL(res.blob);
+  let canShare = false;
+  try { canShare = !!(navigator.canShare && navigator.canShare({ files: [file] })); } catch {}
+  m.el.innerHTML = `
+    <h2>Видео готово</h2>
+    <div class="sub">${res.ext.toUpperCase()} · ${fmtBytes(res.blob.size)} · ${fmtVid(sess.frames / o.fps)}</div>
+    <div class="result"><video src="${url}" controls playsinline loop muted autoplay></video></div>
+    <div class="stack">
+      ${canShare ? `<button class="btn primary big" id="expShare">${isIOS ? 'Сохранить в Фото / Поделиться' : 'Поделиться / сохранить'}</button>` : ''}
+      <button class="btn ${canShare ? 'wide' : 'primary big'}" id="expDl">Скачать файл</button>
+      <button class="btn wide" id="expClose">Закрыть</button>
+    </div>`;
+  if (canShare) $('#expShare').onclick = async () => {
+    try { await navigator.share({ files: [file], title: 'Таймлапс работы' }); }
+    catch (e) { if (!e || e.name !== 'AbortError') toast('Не получилось поделиться — попробуй «Скачать файл»'); }
+  };
+  $('#expDl').onclick = () => { const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); };
+  $('#expClose').onclick = () => { m.close(); setTimeout(() => URL.revokeObjectURL(url), 1000); };
+  window.__lastVideo = res.blob; // для отладки
+}
+
+/* =========================================================
+   Статистика
+   ========================================================= */
+function aggregate() {
+  const days = {};
+  const get = (k) => (days[k] = days[k] || { ms: 0, sessions: [], distr: 0, distrMs: 0 });
+  for (const s of S.sessions) {
+    for (const [k, ms] of Object.entries(s.byDay || {})) get(k).ms += ms;
+    get(dayKey(s.start)).sessions.push(s);
+    for (const d of s.distractions || []) { const o = get(dayKey(d.at)); o.distr++; o.distrMs += d.ms; }
+  }
+  return days;
+}
+function lastNDays(n) {
+  const out = []; const t = new Date(); t.setHours(12, 0, 0, 0);
+  for (let i = n - 1; i >= 0; i--) { const d = new Date(t); d.setDate(t.getDate() - i); out.push(dayKey(d)); }
+  return out;
+}
+function streak() {
+  const MIN = 60000; let n = 0; const t = new Date(); t.setHours(12, 0, 0, 0);
+  const has = (d) => (S.agg[dayKey(d)] ? S.agg[dayKey(d)].ms : 0) >= MIN;
+  if (!has(t)) t.setDate(t.getDate() - 1);
+  while (has(t)) { n++; t.setDate(t.getDate() - 1); }
+  return n;
+}
+function renderStats() {
+  const k = dayKey(); const today = S.agg[k] || { ms: 0, distr: 0, distrMs: 0, sessions: [] };
+  const goal = set.goalMin * 60000;
+  $('#stToday').textContent = fmtDur(today.ms);
+  $('#stGoalFill').style.width = Math.min(100, today.ms / goal * 100) + '%';
+  $('#stGoalText').textContent = today.ms >= goal ? `Цель ${fmtDur(goal)} выполнена ✓` : `Цель ${fmtDur(goal)} · осталось ${fmtDur(goal - today.ms)}`;
+  const week = lastNDays(7).reduce((a, d) => a + (S.agg[d] ? S.agg[d].ms : 0), 0);
+  $('#stWeek').textContent = fmtDur(week);
+  $('#stAvg').textContent = fmtDur(week / 7);
+  const st = streak(); $('#stStreak').textContent = st; $('#stStreakL').textContent = `${plural(st, 'день', 'дня', 'дней')} подряд`;
+  $('#stDistr').textContent = today.distr;
+  $('#stDistrL').textContent = `${plural(today.distr, 'отвлечение', 'отвлечения', 'отвлечений')} сегодня` + (today.distr ? ` · ${fmtDur(today.distrMs)}` : '');
+  $('#goalRowV').textContent = fmtDur(goal) + ' ›';
+  setSwitch($('#dimSw'), set.autoDim);
+  $$('#rangeSeg button').forEach((b) => b.setAttribute('aria-pressed', String(+b.dataset.v === set.range)));
+  drawChart();
+  renderDayList();
+  if (navigator.storage && navigator.storage.estimate) navigator.storage.estimate().then((e) => { $('#storageInfo').textContent = `занято ${fmtBytes(e.usage || 0)}`; }).catch(() => {});
+}
+function niceTop(h) {
+  for (const v of [1, 2, 3, 4, 6, 8, 10, 12]) if (h <= v) return v;
+  return Math.ceil(h / 4) * 4;
+}
+function drawChart() {
+  const el = $('#chart'); const n = set.range;
+  const keys = lastNDays(n); const today = dayKey();
+  const vals = keys.map((k) => (S.agg[k] ? S.agg[k].ms : 0) / 3.6e6);
+  const goalH = set.goalMin / 60;
+  const top = niceTop(Math.max(goalH, ...vals, 0.5));
+  const step = top <= 2 ? 0.5 : top <= 6 ? 1 : top <= 12 ? 2 : 4;
+  const W = el.clientWidth || 320, Hh = el.clientHeight || 200;
+  const pl = 34, pr = 4, pt = 10, pb = 26;
+  const iw = W - pl - pr, ih = Hh - pt - pb;
+  const y = (h) => pt + ih * (1 - h / top);
+  const cw = iw / n; const gap = Math.max(2, cw * (n > 14 ? 0.22 : 0.3)); const bw = Math.max(2, cw - gap);
+  let svg = `<svg viewBox="0 0 ${W} ${Hh}" role="img" aria-label="Часы работы за ${n} дней">`;
+  for (let h = 0; h <= top + 1e-9; h += step) {
+    const yy = Math.round(y(h)) + 0.5;
+    svg += `<line x1="${pl}" x2="${W - pr}" y1="${yy}" y2="${yy}" stroke="${h === 0 ? '#3a3a41' : '#26262b'}" stroke-width="1"/>`;
+    const lbl = h === 0 ? '0' : `${String(h).replace('.', ',')} ч`;
+    svg += `<text x="${pl - 8}" y="${yy + 4}" text-anchor="end" font-size="11" fill="#6e6e76">${lbl}</text>`;
+  }
+  keys.forEach((k, i) => {
+    const v = vals[i]; const x = pl + i * cw + gap / 2;
+    if (v > 0) {
+      const y0 = y(0), y1 = Math.min(y(v), y0 - 2); const r = Math.min(4, bw / 2, y0 - y1);
+      svg += `<path d="M${x},${y0}V${y1 + r}Q${x},${y1} ${x + r},${y1}H${x + bw - r}Q${x + bw},${y1} ${x + bw},${y1 + r}V${y0}Z" fill="#ffb224"/>`;
+    }
+    const showLbl = n <= 7 || (n <= 14 ? (n - 1 - i) % 2 === 0 : (n - 1 - i) % 5 === 0);
+    if (showLbl) {
+      const d = keyToDate(k); const t = n <= 7 ? fWeek.format(d) : String(d.getDate());
+      const isT = k === today;
+      svg += `<text x="${x + bw / 2}" y="${Hh - 8}" text-anchor="middle" font-size="11" fill="${isT ? '#f4f4f5' : '#6e6e76'}" font-weight="${isT ? 700 : 400}">${t}</text>`;
+    }
+  });
+  const gy = Math.round(y(goalH)) + 0.5;
+  svg += `<line x1="${pl}" x2="${W - pr}" y1="${gy}" y2="${gy}" stroke="#f4f4f5" stroke-opacity=".55" stroke-width="1.5" stroke-dasharray="4 4"/>`;
+  svg += `<text x="${W - pr}" y="${gy - 5}" text-anchor="end" font-size="11" fill="#a3a3aa">цель</text>`;
+  keys.forEach((k, i) => { svg += `<rect data-i="${i}" x="${pl + i * cw}" y="${pt}" width="${cw}" height="${ih + pb}" fill="transparent"/>`; });
+  svg += '</svg>';
+  el.innerHTML = svg + '<div class="tip" id="tip" hidden></div>';
+  const tip = $('#tip', el);
+  const show = (i) => {
+    const k = keys[i]; const a = S.agg[k]; const v = vals[i];
+    const ns = a ? a.sessions.length : 0, nd = a ? a.distr : 0;
+    tip.innerHTML = `<span>${esc(dayName(k))}</span><b>${v > 0 ? fmtDur(v * 3.6e6) : 'не работал'}</b><span>${ns} ${plural(ns, 'сессия', 'сессии', 'сессий')} · 📱 ${nd}</span>`;
+    tip.hidden = false;
+    const cx = pl + i * cw + cw / 2; const tw = tip.offsetWidth;
+    tip.style.left = Math.min(W - tw / 2, Math.max(tw / 2, cx)) + 'px';
+    tip.style.top = Math.max(tip.offsetHeight + 4, y(Math.max(v, 0)) - 8) + 'px';
+  };
+  let hideT = 0;
+  $$('rect[data-i]', el).forEach((r) => {
+    r.addEventListener('pointerenter', () => { clearTimeout(hideT); show(+r.dataset.i); });
+    r.addEventListener('pointerdown', () => { clearTimeout(hideT); show(+r.dataset.i); hideT = setTimeout(() => { tip.hidden = true; }, 3500); });
+  });
+  el.onpointerleave = (e) => { if (e.pointerType === 'mouse') tip.hidden = true; };
+}
+function renderDayList() {
+  const goal = set.goalMin * 60000;
+  const keys = Object.keys(S.agg).filter((k) => S.agg[k].ms > 0 || S.agg[k].sessions.length).sort().reverse();
+  const box = $('#dayList');
+  if (!keys.length) { box.innerHTML = `<div class="empty"><div class="e-ico">⏱️</div>Здесь появится, сколько ты работал каждый день. Начни первую запись на вкладке «Съёмка».</div>`; return; }
+  box.innerHTML = keys.slice(0, 90).map((k) => {
+    const a = S.agg[k]; const ns = a.sessions.length;
+    const sess = a.sessions.slice().sort((x, y) => x.start - y.start).map((s) => {
+      const end = s.end || s.lastSaved; const nd = (s.distractions || []).length;
+      return `<div>${esc(fTime.format(s.start))}–${esc(fTime.format(end))} · ${fmtDur(s.activeMs)}${nd ? ` · 📱 ${nd}` : ''}${s.status === 'recording' ? ' · идёт' : ''}</div>`;
+    }).join('');
+    return `<div class="day" data-k="${k}">
+      <div class="dh"><span class="dn">${esc(dayName(k))}</span><span class="dv">${fmtDur(a.ms)}</span></div>
+      <div class="db"><i style="width:${Math.min(100, a.ms / goal * 100)}%"></i></div>
+      <div class="dm">${ns} ${plural(ns, 'сессия', 'сессии', 'сессий')} · ${a.distr} ${plural(a.distr, 'отвлечение', 'отвлечения', 'отвлечений')}${a.distr ? ` (${fmtDur(a.distrMs)})` : ''}</div>
+      <div class="ds">${sess || '<div>сессия перешла с прошлого дня</div>'}</div>
+    </div>`;
+  }).join('');
+  $$('.day', box).forEach((d) => { d.onclick = () => d.classList.toggle('open'); });
+}
+function openGoal() {
+  let v = set.goalMin;
+  const m = sheet(`<h2>Цель на день</h2><div class="sub">Сколько хочешь работать каждый день</div>
+    <div class="stepper"><button data-d="-30" aria-label="Меньше">−</button><div class="val num" id="gv"></div><button data-d="30" aria-label="Больше">+</button></div>
+    <div class="stack"><button class="btn primary big" id="gSave">Сохранить</button></div>`);
+  const sync = () => { $('#gv').textContent = fmtDur(v * 60000); };
+  $$('[data-d]', m.el).forEach((b) => { b.onclick = () => { v = Math.min(16 * 60, Math.max(30, v + +b.dataset.d)); sync(); }; });
+  sync();
+  $('#gSave').onclick = () => { set.goalMin = v; saveSet(); m.close(); refreshAll(); };
+}
+function exportCSV() {
+  const keys = Object.keys(S.agg).sort();
+  const rows = [['Дата', 'Минут работы', 'Сессий', 'Отвлечений', 'Минут отвлечений']];
+  for (const k of keys) { const a = S.agg[k]; rows.push([k, Math.round(a.ms / 60000), a.sessions.length, a.distr, Math.round(a.distrMs / 60000)]); }
+  const csv = '﻿' + rows.map((r) => r.join(';')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const name = `lapse-stats-${dayKey()}.csv`;
+  const file = new File([blob], name, { type: 'text/csv' });
+  try { if (navigator.canShare && navigator.canShare({ files: [file] })) { navigator.share({ files: [file] }).catch(() => {}); return; } } catch {}
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+}
+
+/* =========================================================
+   Записи
+   ========================================================= */
+function renderLib() {
+  const list = S.sessions.filter((s) => s.status === 'done' && s.hasFrames && s.frames > 0).sort((a, b) => b.start - a.start);
+  const box = $('#libList');
+  if (!list.length) { box.innerHTML = `<div class="empty"><div class="e-ico">🎞️</div>Пока нет записей. Начни работу на вкладке «Съёмка» — здесь появятся таймлапсы.</div>`; return; }
+  box.innerHTML = list.map((s) => {
+    const nd = (s.distractions || []).length; const end = s.end || s.lastSaved;
+    return `<div class="lib" data-id="${s.id}">
+      ${s.thumb ? `<img class="thumb" src="${s.thumb}" alt="">` : '<div class="thumb"></div>'}
+      <div class="lib-info">
+        <div class="lib-title">${esc(dayName(dayKey(s.start)))}, ${esc(fTime.format(s.start))}–${esc(fTime.format(end))}</div>
+        <div class="lib-meta">${fmtDur(s.activeMs)} работы · 📱 ${nd}</div>
+        <div class="lib-meta num">${fmtInt(s.frames)} ${plural(s.frames, 'кадр', 'кадра', 'кадров')} · видео ${fmtVid(s.frames / (s.fps || 30))} · ${s.bytes ? fmtBytes(s.bytes) : ''}</div>
+        <div class="lib-actions"><button class="btn primary sm" data-a="exp">Собрать видео</button><button class="btn sm" data-a="del">Удалить</button></div>
+      </div></div>`;
+  }).join('');
+  $$('.lib', box).forEach((c) => {
+    const s = S.sessions.find((x) => x.id === c.dataset.id);
+    $('[data-a=exp]', c).onclick = () => openExport(s);
+    $('[data-a=del]', c).onclick = () => openDelete(s);
+  });
+}
+function openDelete(s) {
+  const m = sheet(`<h2>Удалить запись?</h2>
+    <div class="sub">Кадры займут место${s.bytes ? ` — освободится ${fmtBytes(s.bytes)}` : ''}. Если удалить только кадры, рабочее время останется в статистике.</div>
+    <div class="stack">
+      <button class="btn danger big" data-a="frames">Удалить кадры</button>
+      <button class="btn wide" data-a="all">Удалить и из статистики</button>
+      <button class="btn wide" data-a="no">Отмена</button>
+    </div>`);
+  $('[data-a=frames]', m.el).onclick = async () => {
+    m.close(); await deleteFrames(s.id); s.hasFrames = false; s.bytes = 0; await idbPut('sessions', s); refreshAll(); toast('Кадры удалены, время сохранено');
+  };
+  $('[data-a=all]', m.el).onclick = async () => {
+    m.close(); await deleteFrames(s.id); await idbDel('sessions', s.id);
+    S.sessions = S.sessions.filter((x) => x !== s); refreshAll(); toast('Запись удалена');
+  };
+  $('[data-a=no]', m.el).onclick = m.close;
+}
+
+/* =========================================================
+   Экран «Съёмка»: настройки
+   ========================================================= */
+function renderRecSettings() {
+  $('#intervalChips').innerHTML = INTERVALS.map((v) => `<button class="chip" data-v="${v}" aria-pressed="${v === set.interval}">${v === 60 ? '1 мин' : v + ' с'}</button>`).join('');
+  $('#fpsChips').innerHTML = FPS.map((v) => `<button class="chip" data-v="${v}" aria-pressed="${v === set.fps}">${v} к/с</button>`).join('');
+  $$('#intervalChips .chip').forEach((b) => { b.onclick = () => { set.interval = +b.dataset.v; saveSet(); renderRecSettings(); }; });
+  $$('#fpsChips .chip').forEach((b) => { b.onclick = () => { set.fps = +b.dataset.v; saveSet(); renderRecSettings(); }; });
+  $$('#qualitySeg button').forEach((b) => b.setAttribute('aria-pressed', String(+b.dataset.v === set.quality)));
+  setSwitch($('#overlaySw'), set.overlay);
+  const fph = 3600 / set.interval, vs = fph / set.fps, mb = fph * (set.quality === 1080 ? 0.22 : 0.1);
+  $('#estimate').innerHTML = `Час работы → <b>${fmtVid(vs)}</b> видео · ${fmtInt(fph)} ${plural(fph, 'кадр', 'кадра', 'кадров')} · ≈${fmtBytes(mb * 1e6)}`;
+  updateCamRes();
+}
+function renderTodayMini() {
+  const t = todayMs(); const goal = set.goalMin * 60000;
+  $('#todayMini').innerHTML = `<span>Сегодня <b>${fmtDur(t)}</b></span><span class="bar"><i style="width:${Math.min(100, t / goal * 100)}%"></i></span><span>${fmtDur(goal)}</span>`;
+  $('#topToday').textContent = `Сегодня ${fmtDur(t)}`;
+}
+let deferredPrompt = null;
+function renderInstall() {
+  const card = $('#installCard');
+  if (isStandalone() || LS.get('lapse.installHidden', false)) { card.hidden = true; return; }
+  const body = deferredPrompt
+    ? `<b>Установи как приложение</b>Иконка на главном экране, открывается без браузера.<div style="margin-top:10px"><button class="btn primary sm" id="instBtn">Установить</button></div>`
+    : isIOS
+      ? `<b>Установи на экран «Домой»</b>Нажми «Поделиться» <span aria-hidden="true">⎋</span> внизу Safari → «На экран „Домой“». Так приложение откроется на весь экран.`
+      : `<b>Установи как приложение</b>В меню браузера ⋮ выбери «Установить приложение» или «Добавить на главный экран».`;
+  card.innerHTML = `<div class="ico"><img src="icon-192.png" alt=""></div><div class="txt">${body}</div><button class="x" id="instX" aria-label="Скрыть">×</button>`;
+  card.hidden = false;
+  $('#instX').onclick = () => { LS.set('lapse.installHidden', true); card.hidden = true; };
+  const ib = $('#instBtn');
+  if (ib) ib.onclick = async () => { deferredPrompt.prompt(); try { await deferredPrompt.userChoice; } catch {} deferredPrompt = null; renderInstall(); };
+}
+
+/* =========================================================
+   Вкладки и общее обновление
+   ========================================================= */
+async function showTab(tab) {
+  S.tab = tab;
+  $$('.tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
+  $$('.view').forEach((v) => v.classList.toggle('active', v.id === 'view-' + tab));
+  window.scrollTo(0, 0);
+  if (tab === 'rec') {
+    if (!S.stream && (S.camWanted || (await cameraGranted()))) startCamera();
+  } else if (S.state === 'idle') {
+    stopCamera(); camMessage('Поставь телефон так, чтобы был виден стол');
+  }
+  refreshAll();
+}
+function refreshAll() {
+  S.agg = aggregate();
+  renderTodayMini();
+  if (S.tab === 'stats') renderStats();
+  if (S.tab === 'lib') renderLib();
+}
+
+/* =========================================================
+   События
+   ========================================================= */
+$$('.tabs button').forEach((b) => { b.onclick = () => showTab(b.dataset.tab); });
+$('#camOn').onclick = () => startCamera();
+$('#flipBtn').onclick = async () => { set.facing = set.facing === 'user' ? 'environment' : 'user'; saveSet(); await startCamera(); };
+$$('#qualitySeg button').forEach((b) => { b.onclick = async () => { set.quality = +b.dataset.v; saveSet(); renderRecSettings(); if (S.stream) await startCamera(); }; });
+$('#overlaySw').onclick = () => { set.overlay = !set.overlay; saveSet(); renderRecSettings(); };
+$('#startBtn').onclick = () => startRecording();
+$('#pauseBtn').onclick = () => { if (S.state === 'paused') resumeRecording(); else pauseRecording(); };
+$('#stopBtn').onclick = () => {
+  const m = sheet(`<h2>Закончить сессию?</h2><div class="sub">Сейчас ${fmtDur(S.rec ? S.rec.activeMs : 0)} работы. Потом можно собрать видео.</div>
+    <div class="stack"><button class="btn danger big" id="cfStop">Закончить</button><button class="btn wide" id="cfNo">Продолжить работу</button></div>`);
+  $('#cfStop').onclick = () => { m.close(); stopRecording(); };
+  $('#cfNo').onclick = m.close;
+};
+$('#dimBtn').onclick = (e) => { e.stopPropagation(); clearTimeout(S.dimTimer); dimNow(); };
+$('#pvBtn').onclick = () => {
+  const hidden = !LS.get('lapse.pvHidden', false); LS.set('lapse.pvHidden', hidden);
+  $('#rsPreviewWrap').classList.toggle('off', hidden); $('#pvBtn').textContent = hidden ? 'Показать превью' : 'Скрыть превью';
+};
+$('#recScreen').addEventListener('pointerdown', (e) => {
+  const rs = $('#recScreen');
+  if (rs.classList.contains('dim')) { e.preventDefault(); e.stopPropagation(); }
+  poke();
+}, true);
+$('#awayGo').onclick = () => resumeRecording();
+$('#awayBreak').onclick = () => awayWasBreak();
+$$('#rangeSeg button').forEach((b) => { b.onclick = () => { set.range = +b.dataset.v; saveSet(); renderStats(); }; });
+$('#goalBtn').onclick = openGoal; $('#goalRow').onclick = openGoal;
+$('#dimSw').onclick = () => { set.autoDim = !set.autoDim; saveSet(); setSwitch($('#dimSw'), set.autoDim); };
+$('#csvBtn').onclick = exportCSV;
+document.addEventListener('visibilitychange', () => { if (document.hidden) onHidden(); else onVisible(); });
+window.addEventListener('pagehide', () => { if (S.rec) { if (S.state === 'recording') onHidden(); saveRec(true); } });
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredPrompt = e; renderInstall(); });
+window.addEventListener('appinstalled', () => { deferredPrompt = null; renderInstall(); });
+let rT = 0; window.addEventListener('resize', () => { clearTimeout(rT); rT = setTimeout(() => { if (S.tab === 'stats') drawChart(); }, 150); });
+setInterval(() => { if (S.state === 'idle') refreshAll(); }, 60000); // смена дня
+
+/* =========================================================
+   Старт
+   ========================================================= */
+(async function init() {
+  renderRecSettings(); renderInstall();
+  try { S.sessions = await idbAll('sessions'); }
+  catch (e) { toast('Хранилище недоступно — статистика не сохранится'); S.sessions = []; }
+  refreshAll();
+  await recoverStale();
+  if (await cameraGranted()) startCamera();
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+})();
+</script>
+</body>
+</html>
